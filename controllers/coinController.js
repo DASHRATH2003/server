@@ -6,16 +6,21 @@ const { fetchTopCoins } = require('../services/coingeckoService');
 async function getCoins(req, res) {
   try {
     const coins = await fetchTopCoins();
-    // Upsert into CurrentCoin
-    const ops = coins.map((c) => ({
-      updateOne: {
-        filter: { coinId: c.coinId },
-        update: { $set: c },
-        upsert: true,
-      },
-    }));
-    if (ops.length) {
-      await CurrentCoin.bulkWrite(ops);
+    // Try to upsert into CurrentCoin, but don't fail the response
+    // if the database operation errors out (e.g., cloud DB not reachable).
+    try {
+      const ops = coins.map((c) => ({
+        updateOne: {
+          filter: { coinId: c.coinId },
+          update: { $set: c },
+          upsert: true,
+        },
+      }));
+      if (ops.length) {
+        await CurrentCoin.bulkWrite(ops);
+      }
+    } catch (dbErr) {
+      console.error('DB upsert failed (continuing with API response):', dbErr.message);
     }
     return res.json(coins);
   } catch (err) {
