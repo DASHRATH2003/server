@@ -1,5 +1,6 @@
 const CurrentCoin = require('../models/CurrentCoin');
 const HistoricalCoin = require('../models/HistoricalCoin');
+const axios = require('axios');
 const { fetchTopCoins } = require('../services/coingeckoService');
 
 // GET /api/coins
@@ -62,4 +63,17 @@ async function getHistory(req, res) {
   }
 }
 
-module.exports = { getCoins, postHistory, getHistory };
+// Simple connectivity check to CoinGecko for debugging Render issues
+async function ping(req, res) {
+  try {
+    const { data } = await axios.get('https://api.coingecko.com/api/v3/ping', {
+      timeout: 8000,
+      headers: { Accept: 'application/json', 'User-Agent': 'CryptoTracker/1.0 (+render)' },
+    });
+    return res.json({ ok: true, data });
+  } catch (err) {
+    return res.status(500).json({ ok: false, message: err.message, code: err.code, status: err.response?.status });
+  }
+}
+
+module.exports = { getCoins, postHistory, getHistory, ping };
