@@ -6,21 +6,24 @@ const { fetchTopCoins } = require('../services/coingeckoService');
 async function getCoins(req, res) {
   try {
     const coins = await fetchTopCoins();
-    // Try to upsert into CurrentCoin, but don't fail the response
-    // if the database operation errors out (e.g., cloud DB not reachable).
-    try {
-      const ops = coins.map((c) => ({
-        updateOne: {
-          filter: { coinId: c.coinId },
-          update: { $set: c },
-          upsert: true,
-        },
-      }));
-      if (ops.length) {
-        await CurrentCoin.bulkWrite(ops);
+    // Optionally skip DB writes in restricted environments
+    if (process.env.DISABLE_DB_WRITE !== 'true') {
+      // Try to upsert into CurrentCoin, but don't fail the response
+      // if the database operation errors out (e.g., cloud DB not reachable).
+      try {
+        const ops = coins.map((c) => ({
+          updateOne: {
+            filter: { coinId: c.coinId },
+            update: { $set: c },
+            upsert: true,
+          },
+        }));
+        if (ops.length) {
+          await CurrentCoin.bulkWrite(ops);
+        }
+      } catch (dbErr) {
+        console.error('DB upsert failed (continuing with API response):', dbErr.message);
       }
-    } catch (dbErr) {
-      console.error('DB upsert failed (continuing with API response):', dbErr.message);
     }
     return res.json(coins);
   } catch (err) {
@@ -33,6 +36,9 @@ async function getCoins(req, res) {
 async function postHistory(req, res) {
   try {
     const coins = await fetchTopCoins();
+    if (process.env.DISABLE_DB_WRITE === 'true') {
+      return res.status(200).json({ inserted: 0, message: 'DB writes disabled' });
+    }
     const docs = coins.map((c) => ({ ...c, snapshotAt: new Date() }));
     const result = await HistoricalCoin.insertMany(docs);
     console.log(`POST /api/history inserted: ${result.length}`);
