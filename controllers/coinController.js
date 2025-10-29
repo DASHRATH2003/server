@@ -66,9 +66,13 @@ async function getHistory(req, res) {
 // Simple connectivity check to CoinGecko for debugging Render issues
 async function ping(req, res) {
   try {
+    const headers = { Accept: 'application/json', 'User-Agent': 'CryptoTracker/1.0 (+render)' };
+    if (process.env.COINGECKO_API_KEY) {
+      headers['x-cg-demo-api-key'] = process.env.COINGECKO_API_KEY;
+    }
     const { data } = await axios.get('https://api.coingecko.com/api/v3/ping', {
       timeout: 8000,
-      headers: { Accept: 'application/json', 'User-Agent': 'CryptoTracker/1.0 (+render)' },
+      headers,
     });
     return res.json({ ok: true, data });
   } catch (err) {
