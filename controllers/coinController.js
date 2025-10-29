@@ -1,0 +1,54 @@
+const CurrentCoin = require('../models/CurrentCoin');
+const HistoricalCoin = require('../models/HistoricalCoin');
+const { fetchTopCoins } = require('../services/coingeckoService');
+
+// GET /api/coins
+async function getCoins(req, res) {
+  try {
+    const coins = await fetchTopCoins();
+    // Upsert into CurrentCoin
+    const ops = coins.map((c) => ({
+      updateOne: {
+        filter: { coinId: c.coinId },
+        update: { $set: c },
+        upsert: true,
+      },
+    }));
+    if (ops.length) {
+      await CurrentCoin.bulkWrite(ops);
+    }
+    return res.json(coins);
+  } catch (err) {
+    console.error('Error in getCoins:', err.message);
+    return res.status(500).json({ error: 'Failed to fetch coins' });
+  }
+}
+
+// POST /api/history
+async function postHistory(req, res) {
+  try {
+    const coins = await fetchTopCoins();
+    const docs = coins.map((c) => ({ ...c, snapshotAt: new Date() }));
+    const result = await HistoricalCoin.insertMany(docs);
+    console.log(`POST /api/history inserted: ${result.length}`);
+    return res.status(201).json({ inserted: result.length });
+  } catch (err) {
+    console.error('Error in postHistory:', err.message);
+    return res.status(500).json({ error: 'Failed to store history' });
+  }
+}
+
+// GET /api/history/:coinId
+async function getHistory(req, res) {
+  try {
+    const { coinId } = req.params;
+    if (!coinId) return res.status(400).json({ error: 'coinId is required' });
+    const history = await HistoricalCoin.find({ coinId }).sort({ snapshotAt: -1 }).limit(200);
+    return res.json(history);
+  } catch (err) {
+    console.error('Error in getHistory:', err.message);
+    return res.status(500).json({ error: 'Failed to fetch history' });
+  }
+}
+
+module.exports = { getCoins, postHistory, getHistory };
